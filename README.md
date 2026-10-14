@@ -1,7 +1,3 @@
-# iam26-ieeerobot
-IEEE Robot Championship 2026 — Robot Arm AI Challenge
-
-
 ================================================================================
 IAM26 — IEEE Robot Arm AI Challenge 2026
 Master Plan + Code Snippets + GitHub Setup
@@ -390,15 +386,12 @@ class ZED2Perception:
 
 
 # --- HSV CONFIG ---
-# These are YOUR tuned values from the slider tool. Update as needed.
+# These are YOUR tuned values from the slider tool. Updated.
 HSV_CONFIG = {
-    "red": [
-        ((0, 120, 70), (10, 255, 255)),
-        ((170, 120, 70), (180, 255, 255)),
-    ],
-    "blue": [((100, 120, 70), (130, 255, 255))],
-    "green": [((35, 120, 70), (85, 255, 255))],
-    "yellow": [((20, 100, 100), (35, 255, 255))],
+    "red": [((119, 41, 0), (180, 255, 255))],
+    "blue": [((97, 64, 13), (131, 255, 255))],
+    "green": [((41, 60, 0), (75, 255, 255))],
+    "yellow": [((18, 97, 190), (47, 255, 255))],
 }
 
 
