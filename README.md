@@ -140,8 +140,8 @@ STEP 1: Create the repo on GitHub
 STEP 2: Clone it on the desktop (at the lab)
 ---------------------------------------------
   cd ~
-  git clone https://github.com/YOUR_USERNAME/iam26-robot.git
-  cd iam26-robot
+  git clone https://github.com/YOUR_USERNAME/iam26-ieeerobot.git
+  cd iam26-ieeerobot
 
 STEP 3: Create the folder structure
 ------------------------------------
