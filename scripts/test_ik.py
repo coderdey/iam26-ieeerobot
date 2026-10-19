@@ -5,7 +5,7 @@ import numpy as np
 
 # Load chain from URDF — no manual measurements needed
 chain = ikpy.chain.Chain.from_urdf_file(
-    "../urdf/so100.urdf",
+    "../urdf/so101.urdf",
     active_links_mask=[False, True, True, True, True, True, False]
 )
 
