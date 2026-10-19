@@ -1,14 +1,12 @@
-================================================================================
 IAM26 — IEEE Robot Arm AI Challenge 2026
 Master Plan + Code Snippets + GitHub Setup
 Last updated: 2026-10-14
-================================================================================
 
 COMPETITION: Nov 28-29, Malta
 
-================================================================================
+==
 URGENT DEADLINES
-================================================================================
+==
 
   ~Oct 28  AI Pitch Proposal (1 month before competition)  *** DO THIS NOW ***
            - Submit via Google Form (shared by organizers)
@@ -37,12 +35,12 @@ URGENT DEADLINES
   Nov 29   Competition Day 2 (if applicable — finals)
 
 
-================================================================================
+==
 SYSTEM ARCHITECTURE — HOW EVERYTHING FITS TOGETHER
-================================================================================
+==
 
 GAME 1 — PICK AND PLACE (Color Sort, Shape Sort, Dynamic Sort)
---------------------------------------------------------------
+--
 
   ZED 2 (via ZED SDK)
     |
@@ -70,7 +68,7 @@ GAME 1 — PICK AND PLACE (Color Sort, Shape Sort, Dynamic Sort)
 
 
 GAME 2 — TWO-ARM COORDINATION (Pouring, Folding, Wrap & Pack)
---------------------------------------------------------------
+--
 
   Pure imitation learning. Both cameras recorded through LeRobot.
 
@@ -101,9 +99,9 @@ WHAT NEEDS AI vs WHAT DOESN'T:
     - Wrapping + packing     --> dexterous, two-arm
 
 
-================================================================================
+==
 CAMERA SETUP — WHO DOES WHAT
-================================================================================
+==
 
   GAME 1 (pick-and-place):
     ZED 2 --> ZED SDK (pyzed) --> classical perception (HSV, depth, positions)
@@ -118,33 +116,12 @@ CAMERA SETUP — WHO DOES WHAT
   Use OpenCV for LeRobot recording. Use ZED SDK for runtime perception.
 
 
-================================================================================
+==
 GITHUB REPO SETUP — STEP BY STEP FOR BEGINNERS
-================================================================================
-
-STEP 1: Create the repo on GitHub
-----------------------------------
-  1. Go to github.com, sign in
-  2. Click the green "New" button (top left)
-  3. Repository name: iam26-robot
-  4. Description: "IEEE Robot Championship 2026 — Robot Arm AI Challenge"
-  5. Private (you can make it public later)
-  6. Check "Add a README file"
-  7. Add .gitignore: Python
-  8. Click "Create repository"
-
-STEP 2: Clone it on the desktop (at the lab)
----------------------------------------------
-  cd ~
-  git clone https://github.com/YOUR_USERNAME/iam26-ieeerobot.git
-  cd iam26-ieeerobot
-
-STEP 3: Create the folder structure
-------------------------------------
-  mkdir -p urdf scripts models/act models/yolo config data/yolo_images
+==
 
 STEP 4: Copy your existing files in
-------------------------------------
+--
   # Copy the URDF your teammates got working
   cp /home/cris/.cache/huggingface/lerobot/robot_urdfs/robot.urdf urdf/
 
@@ -152,17 +129,17 @@ STEP 4: Copy your existing files in
   # You'll create these files next
 
 STEP 5: First commit and push
-------------------------------
+--
   git add -A
   git commit -m "Initial repo structure with scripts and URDF"
   git push
 
 STEP 6: Your teammates clone on their machines
------------------------------------------------
+--
   git clone https://github.com/YOUR_USERNAME/iam26-robot.git
 
 STEP 7: Daily workflow
------------------------
+--
   # Before starting work — pull latest changes
   git pull
 
@@ -179,364 +156,9 @@ STEP 7: Daily workflow
   git push
 
 
-================================================================================
-CODE SNIPPETS — COPY THESE INTO THE REPO
-================================================================================
-
---- scripts/test_ik.py ---
-"""Test IK using URDF. Run on desktop to verify arm reaches target positions."""
-
-import ikpy.chain
-import numpy as np
-
-# Load chain from URDF — no manual measurements needed
-chain = ikpy.chain.Chain.from_urdf_file(
-    "../urdf/so100.urdf",
-    active_links_mask=[False, True, True, True, True, True, False]
-)
-
-# Test positions (x=forward, y=left, z=up, in meters from base)
-test_points = [
-    [0.10, 0.00, 0.10],   # front center, 10cm up
-    [0.15, 0.00, 0.05],   # further forward, lower
-    [0.10, 0.10, 0.05],   # front right
-    [0.10, -0.10, 0.05],  # front left
-]
-
-for target in test_points:
-    angles = chain.inverse_kinematics(target)
-    fk = chain.forward_kinematics(angles)
-    reached = fk[:3, 3]
-    error_mm = np.linalg.norm(reached - target) * 1000
-
-    print(f"Target: {target}")
-    print(f"  Angles (deg): {np.round(np.degrees(angles[1:6]), 1)}")
-    print(f"  Reached: {np.round(reached, 3)}")
-    print(f"  Error: {error_mm:.1f} mm")
-    print(f"  {'OK' if error_mm < 10 else 'BAD — check URDF'}")
-    print()
-
-
---- scripts/gripper_test.py ---
-"""Find gripper positions for each object. Run on desktop with arm connected."""
-
-from scservo_sdk import PortHandler, PacketHandler
-import time
-
-PORT = "/dev/ttyACM1"       # adjust to your follower arm port
-BAUDRATE = 1_000_000
-GRIPPER_ID = 6
-
-ph = PortHandler(PORT)
-ph.openPort()
-ph.setBaudRate(BAUDRATE)
-pk = PacketHandler(0)
-
-pk.write2ByteTxRx(ph, GRIPPER_ID, 46, 100)  # slow speed
-
-print("Type a position (1400=fully open, 5000=fully closed) or 'q' to quit")
-print("Start at 1400, increase slowly until object is gripped firmly")
-print("STOP BEFORE THE SERVO STALLS — if it buzzes, go back!\n")
-
-while True:
-    val = input("Position > ")
-    if val.strip().lower() == 'q':
-        break
-    try:
-        pos = int(val)
-        pk.write2ByteTxRx(ph, GRIPPER_ID, 42, pos)
-        print(f"  Moved gripper to {pos}")
-        time.sleep(0.5)
-        cur_pos, _, _ = pk.read2ByteTxRx(ph, GRIPPER_ID, 56)
-        print(f"  Actual position: {cur_pos}")
-    except ValueError:
-        print("  Enter a number or 'q'")
-
-pk.write2ByteTxRx(ph, GRIPPER_ID, 42, 1400)  # open before exit
-ph.closePort()
-print("Done.")
-
-
---- scripts/snapshot.py ---
-"""Take snapshots from camera for YOLO training data or reference photos."""
-
-import cv2
-import os
-
-os.makedirs("../data/yolo_images", exist_ok=True)
-
-cam_index = 0  # ZED 2 = 0, wrist = 2 (check with lerobot-find-cameras)
-cap = cv2.VideoCapture(cam_index)
-
-if not cap.isOpened():
-    print(f"Camera {cam_index} failed")
-    exit(1)
-
-i = 0
-print("Press 's' to save snapshot, 'q' to quit")
-print("Move objects/bins between snapshots for variety!")
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # If ZED gives 2560x720 side-by-side, crop to left eye
-    if frame.shape[1] > 1300:
-        frame = frame[:, :frame.shape[1]//2, :]
-
-    cv2.imshow("Camera", frame)
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('s'):
-        path = f"../data/yolo_images/img_{i:04d}.png"
-        cv2.imwrite(path, frame)
-        print(f"Saved {path} ({i+1} total)")
-        i += 1
-    elif key == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-print(f"Done. Saved {i} images.")
-
-
---- scripts/zed_perception.py ---
-"""ZED 2 perception module — object detection + 3D positions.
-Uses ZED SDK for proper depth. Used at RUNTIME, not for LeRobot training."""
-
-import pyzed.sl as sl
-import numpy as np
-import cv2
-
-
-class ZED2Perception:
-    def __init__(self):
-        self.zed = sl.Camera()
-        init = sl.InitParameters()
-        init.camera_resolution = sl.RESOLUTION.HD720
-        init.depth_mode = sl.DEPTH_MODE.ULTRA
-        init.coordinate_units = sl.UNIT.METER
-        init.depth_minimum_distance = 0.15
-
-        status = self.zed.open(init)
-        if status != sl.ERROR_CODE.SUCCESS:
-            raise RuntimeError(f"ZED open failed: {status}")
-
-        self.image = sl.Mat()
-        self.point_cloud = sl.Mat()
-        self.runtime = sl.RuntimeParameters()
-
-        # Camera-to-robot transform — set by QR calibration
-        self.T_cam_to_robot = np.eye(4)
-
-    def grab(self):
-        """Get RGB image and point cloud."""
-        if self.zed.grab(self.runtime) != sl.ERROR_CODE.SUCCESS:
-            return None, None
-        self.zed.retrieve_image(self.image, sl.VIEW.LEFT)
-        self.zed.retrieve_measure(self.point_cloud, sl.MEASURE.XYZRGBA)
-        bgr = self.image.get_data()[:, :, :3]
-        return bgr, self.point_cloud
-
-    def pixel_to_robot_xyz(self, px, py):
-        """Convert pixel (px, py) to robot base frame XYZ using depth."""
-        err, pt = self.point_cloud.get_value(int(px), int(py))
-        if not np.isfinite(pt[0]):
-            return None
-        cam = np.array([pt[0], pt[1], pt[2], 1.0])
-        robot = self.T_cam_to_robot @ cam
-        return robot[:3]
-
-    def detect_by_hsv(self, bgr, color_name, hsv_ranges):
-        """Detect objects of a specific color using HSV."""
-        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        for lo, hi in hsv_ranges:
-            mask |= cv2.inRange(hsv, np.array(lo), np.array(hi))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5)))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5)))
-
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        detections = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area < 500:
-                continue
-            M = cv2.moments(cnt)
-            if M["m00"] == 0:
-                continue
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-            xyz = self.pixel_to_robot_xyz(cx, cy)
-            detections.append({
-                "color": color_name,
-                "center_px": (cx, cy),
-                "position_3d": xyz,
-                "area": area,
-            })
-        return detections
-
-    def load_calibration(self, filepath):
-        """Load camera-to-robot transform from file."""
-        self.T_cam_to_robot = np.load(filepath)
-        print(f"Loaded calibration from {filepath}")
-
-    def close(self):
-        self.zed.close()
-
-
-# --- HSV CONFIG ---
-# These are YOUR tuned values from the slider tool. Updated.
-HSV_CONFIG = {
-    "red": [((119, 41, 0), (180, 255, 255))],
-    "blue": [((97, 64, 13), (131, 255, 255))],
-    "green": [((41, 60, 0), (75, 255, 255))],
-    "yellow": [((18, 97, 190), (47, 255, 255))],
-}
-
-
---- scripts/qr_calibrate.py ---
-"""Auto-calibrate camera-to-robot transform using QR codes on the workspace.
-Print QR codes labeled 'qr_1' through 'qr_4', tape at known positions,
-measure their positions relative to arm base with a ruler."""
-
-import cv2
-import numpy as np
-
-
-# FILL IN: measured positions of QR codes relative to robot base (meters)
-# Measure with ruler from arm base center to each QR code center
-KNOWN_QR_POSITIONS = {
-    "qr_1": np.array([0.10, 0.10, 0.0]),   # UPDATE with real measurements
-    "qr_2": np.array([0.20, 0.10, 0.0]),   # UPDATE
-    "qr_3": np.array([0.10, 0.20, 0.0]),   # UPDATE
-    "qr_4": np.array([0.20, 0.20, 0.0]),   # UPDATE
-}
-
-
-def solve_rigid_transform(A, B):
-    """Find 4x4 transform T such that B ~ T @ A. A,B are Nx3."""
-    assert A.shape == B.shape
-    cA = np.mean(A, axis=0)
-    cB = np.mean(B, axis=0)
-    H = (A - cA).T @ (B - cB)
-    U, S, Vt = np.linalg.svd(H)
-    R = Vt.T @ U.T
-    if np.linalg.det(R) < 0:
-        Vt[-1, :] *= -1
-        R = Vt.T @ U.T
-    t = cB - R @ cA
-    T = np.eye(4)
-    T[:3, :3] = R
-    T[:3, 3] = t
-    return T
-
-
-def calibrate_from_zed(zed_perception):
-    """Run QR detection on live ZED feed and compute transform."""
-    detector = cv2.QRCodeDetector()
-
-    print("Point ZED 2 at workspace with all 4 QR codes visible.")
-    print("Press 'c' to capture and calibrate, 'q' to quit.")
-
-    while True:
-        bgr, pc = zed_perception.grab()
-        if bgr is None:
-            continue
-
-        cv2.imshow("QR Calibration", bgr)
-        key = cv2.waitKey(1) & 0xFF
-
-        if key == ord('c'):
-            retval, decoded_info, points, _ = detector.detectAndDecodeMulti(bgr)
-            if not retval or len(decoded_info) < 4:
-                print(f"Only found {len(decoded_info) if retval else 0} QR codes. Need 4.")
-                continue
-
-            cam_points = []
-            robot_points = []
-            for info, pts in zip(decoded_info, points):
-                if info not in KNOWN_QR_POSITIONS:
-                    print(f"Unknown QR: '{info}', skipping")
-                    continue
-                cx, cy = pts.mean(axis=0)
-                cam_xyz = zed_perception.pixel_to_robot_xyz(int(cx), int(cy))
-                if cam_xyz is None:
-                    print(f"No depth for QR '{info}', skipping")
-                    continue
-                cam_points.append(cam_xyz)
-                robot_points.append(KNOWN_QR_POSITIONS[info])
-                print(f"  {info}: pixel=({cx:.0f},{cy:.0f}) cam={cam_xyz} robot={KNOWN_QR_POSITIONS[info]}")
-
-            if len(cam_points) >= 4:
-                T = solve_rigid_transform(np.array(cam_points), np.array(robot_points))
-                np.save("../config/camera_transform.npy", T)
-                print(f"\nCalibration saved to config/camera_transform.npy")
-                print(f"Transform:\n{T}")
-                zed_perception.T_cam_to_robot = T
-                break
-            else:
-                print("Not enough valid QR detections. Try again.")
-
-        elif key == ord('q'):
-            break
-
-    cv2.destroyAllWindows()
-
-
---- scripts/hsv_tuner.py ---
-"""HSV tuning tool. Opens camera with sliders to find color ranges.
-Works with ZED 2 via OpenCV (left eye crop) or any webcam."""
-
-import cv2
-import numpy as np
-
-cam_index = 0  # ZED 2
-cap = cv2.VideoCapture(cam_index)
-
-cv2.namedWindow("HSV Tuner")
-cv2.createTrackbar("H_lo", "HSV Tuner", 0, 180, lambda x: None)
-cv2.createTrackbar("S_lo", "HSV Tuner", 120, 255, lambda x: None)
-cv2.createTrackbar("V_lo", "HSV Tuner", 70, 255, lambda x: None)
-cv2.createTrackbar("H_hi", "HSV Tuner", 180, 180, lambda x: None)
-cv2.createTrackbar("S_hi", "HSV Tuner", 255, 255, lambda x: None)
-cv2.createTrackbar("V_hi", "HSV Tuner", 255, 255, lambda x: None)
-
-print("Adjust sliders until ONLY the target color shows white on the right.")
-print("Press 'q' to quit and print values.")
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # Crop ZED side-by-side if needed
-    if frame.shape[1] > 1300:
-        frame = frame[:, :frame.shape[1]//2, :]
-
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lo = np.array([cv2.getTrackbarPos("H_lo", "HSV Tuner"),
-                   cv2.getTrackbarPos("S_lo", "HSV Tuner"),
-                   cv2.getTrackbarPos("V_lo", "HSV Tuner")])
-    hi = np.array([cv2.getTrackbarPos("H_hi", "HSV Tuner"),
-                   cv2.getTrackbarPos("S_hi", "HSV Tuner"),
-                   cv2.getTrackbarPos("V_hi", "HSV Tuner")])
-    mask = cv2.inRange(hsv, lo, hi)
-    result = cv2.bitwise_and(frame, frame, mask=mask)
-
-    cv2.imshow("HSV Tuner", np.hstack([frame, result]))
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        print(f"\nHSV range: (({lo[0]}, {lo[1]}, {lo[2]}), ({hi[0]}, {hi[1]}, {hi[2]}))")
-        print("Copy this into HSV_CONFIG in zed_perception.py")
-        break
-
-cap.release()
-cv2.destroyAllWindows()
-
-
-================================================================================
+==
 LEROBOT COMMANDS — RECORDING + TRAINING + DEPLOYMENT
-================================================================================
+==
 
 GAME 1 — Record grasping episodes (wrist camera only):
 
@@ -622,9 +244,9 @@ KEYBOARD WARNING:
   - Close just enough to grip the object firmly
 
 
-================================================================================
+==
 RECORDING TIPS FROM HF DOCS
-================================================================================
+==
 
   - Start with one simple task (pick object, place in bin)
   - Get that working reliably FIRST
@@ -636,9 +258,9 @@ RECORDING TIPS FROM HF DOCS
   - Use --resume=true to add more episodes to existing dataset if recording crashes
 
 
-================================================================================
+==
 KNOWN HARDWARE ISSUES + FIXES
-================================================================================
+==
 
   1. GRIPPER OVERLOAD (servo ID 6)
      Symptom: arm loses all connection, "Overload error", core dump
@@ -666,15 +288,15 @@ KNOWN HARDWARE ISSUES + FIXES
      Fix: use desktop (29.93 Hz), or reduce to --dataset.fps=15 on laptop
 
 
-================================================================================
+==
 TIMELINE — WHAT TO DO WHEN
-================================================================================
+==
 
   THIS WEEK (Oct 14-20):
     You (remote):
-      [ ] Set up GitHub repo with structure above
+      [x] Set up GitHub repo with structure above
       [ ] Fix URDF loading in test_ik.py (get working URDF from teammates)
-      [ ] Start AI Pitch Proposal (DUE ~Oct 28)
+      [x] Start AI Pitch Proposal (DUE ~Oct 28)
       [ ] Start 'Making Of' video clips (DUE Nov 1)
     Teammates (lab):
       [ ] Test IK on physical arm with URDF values
@@ -712,9 +334,9 @@ TIMELINE — WHAT TO DO WHEN
     [ ] Finals (if top 2)
 
 
-================================================================================
+==
 DESKTOP INFO
-================================================================================
+==
 
   User: cris
   OS: Ubuntu 22 + NVIDIA GPU
