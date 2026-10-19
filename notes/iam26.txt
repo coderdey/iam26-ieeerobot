@@ -1,0 +1,226 @@
+---
+What you can do REMOTELY (right now, from home)
+
+1. Write and test all your detection code (no arm, no camera needed)
+
+Save test images from your ZED 2 (or even download stock images of colored blocks) and run detection offline:
+
+# In your Miniforge Prompt
+conda activate lerobot
+pip install opencv-python numpy ikpy
+
+Then create a test script:
+
+# test_detection_offline.py
+import cv2
+from so100_classical_pick_place import detect_objects
+
+# Use ANY image — a photo of colored blocks, or even colored paper
+img = cv2.imread("test_image.jpg")
+objects = detect_objects(img)
+
+for obj in objects:
+    print(f"Found: {obj.color} {obj.shape} at pixel {obj.center_px}, area={obj.area:.0f}")
+
+# Shows the image with detections drawn on it
+vis = img.copy()
+for obj in objects:
+    cv2.drawContours(vis, [obj.contour], -1, (0,255,0), 2)
+    cv2.putText(vis, f"{obj.color} {obj.shape}",
+                (obj.center_px[0]+10, obj.center_px[1]),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 2)
+
+cv2.imshow("Test", vis)
+cv2.waitKey(0)  # press any key to close
+
+Take photos of your actual competition objects if you can, or ask a teammate to send you pictures. The more realistic the better.
+
+2. Tune HSV color ranges on saved images (no camera live feed needed)
+
+You don't need the ZED 2 plugged in. Use this instead:
+
+# tune_hsv_offline.py
+import cv2
+import numpy as np
+
+img = cv2.imread("test_image.jpg")
+hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+cv2.namedWindow("Tuner")
+cv2.createTrackbar("H_lo", "Tuner", 0, 180, lambda x: None)
+cv2.createTrackbar("S_lo", "Tuner", 120, 255, lambda x: None)
+cv2.createTrackbar("V_lo", "Tuner", 70, 255, lambda x: None)
+cv2.createTrackbar("H_hi", "Tuner", 180, 180, lambda x: None)
+cv2.createTrackbar("S_hi", "Tuner", 255, 255, lambda x: None)
+cv2.createTrackbar("V_hi", "Tuner", 255, 255, lambda x: None)
+
+while True:
+    lo = np.array([cv2.getTrackbarPos("H_lo", "Tuner"),
+                   cv2.getTrackbarPos("S_lo", "Tuner"),
+                   cv2.getTrackbarPos("V_lo", "Tuner")])
+    hi = np.array([cv2.getTrackbarPos("H_hi", "Tuner"),
+                   cv2.getTrackbarPos("S_hi", "Tuner"),
+                   cv2.getTrackbarPos("V_hi", "Tuner")])
+
+    mask = cv2.inRange(hsv, lo, hi)
+    result = cv2.bitwise_and(img, img, mask=mask)
+    cv2.imshow("Tuner", np.hstack([img, result]))
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        # When you find good values, they print here
+        print(f"hsv_ranges: [({tuple(lo)}, {tuple(hi)})]")
+        break
+
+cv2.destroyAllWindows()
+
+What you're doing: dragging sliders until ONLY the red block (or blue, green, etc.) shows up as white in the right-side image. Everything else should be black. Write down those numbers — they go in COLOR_CONFIG in the main script.
+
+3. Test IK math (no physical arm needed)
+
+# test_ik_offline.py
+from so100_classical_pick_place import SO100Arm
+import numpy as np
+
+# This will fail on servo connection — that's fine, we patch it
+class FakeArm(SO100Arm):
+    def _connect(self, port, baudrate):
+        pass  # skip servo connection
+
+arm = FakeArm.__new__(FakeArm)
+arm.chain = arm._build_chain()
+
+# Test: can the arm reach these positions?
+test_points = [
+    [0.10, 0.10, 0.05],   # front-right, 5cm above table
+    [0.00, 0.20, 0.05],   # straight ahead
+    [-0.10, 0.10, 0.05],  # front-left
+    [0.00, 0.15, 0.15],   # higher up (for lifting)
+]
+
+for xyz in test_points:
+    angles = arm.solve_ik(xyz)
+    print(f"Target {xyz} → joints: {np.round(angles, 1)} degrees")
+    # If any angle is exactly at ±90 or ±135, the position is at the edge of reachability
+
+This tells you if your bin positions and grasp positions are actually reachable before you drive there physically.
+
+4. Design your task logic and state machines
+
+For each competition task, write the decision logic:
+- What order to pick objects?
+- What if detection finds nothing?
+- What if a grasp fails? (re-detect and retry)
+- Bimanual coordination timing
+
+5. Practice imitation learning in LeRobot sim
+
+Even with the freezing issues, you can learn the LeRobot training pipeline:
+
+conda activate lerobot
+
+# Record a demonstration (in sim, with your sliders)
+python lerobot/scripts/control_robot.py record \
+    --robot-path lerobot/configs/robot/so100.yaml \
+    --fps 30 \
+    --repo-id your-name/test-task \
+    --num-episodes 2
+
+# Train a policy on recorded data
+python lerobot/scripts/train.py \
+    --dataset.repo_id your-name/test-task \
+    --policy act
+
+Even if sim is bad for contact, learning this pipeline means you're fast when you get to the real arms.
+
+---
+What you MUST do PHYSICALLY (on-site visits)
+
+Plan your visits around these — do them in this order:
+
+Visit 1: Measure + Calibrate (the boring but critical one)
+
+Measure link lengths:
+- Get calipers or a ruler
+- Measure these 4 distances in millimeters, then convert to meters:
+  - Base height: from the table surface to the center of the shoulder joint
+  - Shoulder to elbow: center of shoulder joint to center of elbow joint
+  - Elbow to wrist: center of elbow joint to center of wrist joint
+  - Wrist to gripper tip: center of wrist joint to the tip of the closed gripper
+- Update the 4 constants at the top of the script
+- Take a photo of each measurement so you have it at home
+
+Calibrate gripper:
+- Connect to the arm via Miniforge:
+conda activate lerobot
+python
+from scservo_sdk import PortHandler, PacketHandler
+ph = PortHandler("COM3")  # or whatever port
+ph.openPort()
+ph.setBaudRate(1000000)
+pk = PacketHandler(0)
+
+# Gripper is servo ID 6 — try different positions
+# to find open and closed values
+pk.write2ByteTxRx(ph, 6, 46, 100)  # slow speed
+pk.write2ByteTxRx(ph, 6, 42, 1400) # try this for open - CLOSES SHUT
+# watch the gripper — is it fully open?
+pk.write2ByteTxRx(ph, 6, 42, 5000) # try this for closed - FULLY OPEN (90DEG)
+# does it grip firmly? adjust numbers until right
+- Write down the open/closed values
+1400 and 5000
+
+Calibrate camera-to-robot transform:
+- This is the "touch 4 points" procedure:
+  a. Put 4 pieces of tape on the table in different positions the arm can reach
+  b. For each tape dot:
+      - Jog the arm (using LeRobot teleoperation or manual servo commands) until the gripper tip touches the tape
+    - Record the joint angles → you'll compute the XYZ position from these using forward kinematics
+    - Look at the ZED 2 camera image, find the tape dot's pixel position, and read the depth from the point cloud
+  c. You now have 4 pairs: (camera_xyz, robot_xyz)
+  d. Run solve_rigid_transform() to get the 4x4 matrix
+  e. Write it down / save to a file — you only do this once unless you move the camera
+
+Take reference photos:
+- Photograph the workspace from the ZED 2's viewpoint
+- Photograph each competition object (colored blocks, bins, etc.)
+- Email these to yourself — this is what you use for remote HSV tuning
+
+Visit 2: First pick-and-place test
+
+- Update the script with all your measured/calibrated values
+- Run color sort on a single object
+- Debug: is the arm reaching the right position? Tune GRASP_HEIGHT if it's too high/low
+- Test with each color object and each bin position
+
+Visit 3: Full task testing
+
+- All colors, shapes, tower stacking
+- Bimanual handoff
+- Record imitation learning episodes for cloth/rice/bubble wrap tasks
+
+Visit 4: Competition prep
+
+- Robustness: run each task 10 times, note failure rate
+- Speed tuning: increase SPEED_FAST if safe
+- Lighting: test under different lighting, adjust HSV ranges
+
+---
+Summary: your time split
+
+┌──────────────────────────────┬──────────┬───────────────────┐
+│             Work             │  Where   │ % of total effort │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ Detection code + HSV tuning  │ Remote   │ 25%               │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ IK testing + task logic      │ Remote   │ 20%               │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ LeRobot pipeline practice    │ Remote   │ 15%               │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ Measurement + calibration    │ Physical │ 15%               │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ Real arm testing + debugging │ Physical │ 20%               │
+├──────────────────────────────┼──────────┼───────────────────┤
+│ Imitation learning recording │ Physical │ 5%                │
+└──────────────────────────────┴──────────┴───────────────────┘
+
+You can get ~60% of the work done from home before you ever touch the physical arms. Start with the offline detection testing tonight — that gives you the most bang for your time.

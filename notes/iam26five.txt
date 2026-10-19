@@ -1,0 +1,78 @@
+Focus on training "pick any object, place in a bin" as a generic grasping skill. This is actually the right starting point — get reliable pick-and-place working first, add color/shape sorting later when you have the real competition objects (4 colors, 4 shapes).
+
+Make your task description match:
+--dataset.single_task="Pick up object and place in bin"
+
+Before You Start Recording — Checklist
+
+1. Calibrate both arms on the desktop — you haven't done this on this machine yet
+conda activate lerobot
+pip install -e ".[feetech]"  # if not already done
+sudo chmod 666 /dev/ttyACM*
+lerobot-find-port             # identify both ports
+lerobot-calibrate --robot.type=so100_follower --robot.port=/dev/ttyACM? --robot.id=follower_left
+lerobot-calibrate --teleop.type=so100_leader --teleop.port=/dev/ttyACM?                 --teleop.id=leader_left
+2. Test teleoperation first — move the leader arm, confirm follower mirrors it smoothly before recording anything
+3. Run lerobot-find-cameras opencv — note exact indices and resolutions, plug into the
+record command
+
+Recording Tips for Today
+
+- Aim for 25-50 episodes — m
+- Vary object position each episode — don't always put it in the same spot
+- Vary approach angle — don'tural variation helpsgeneralization
+- Discard bad episodes — if t arrow to re-record thatepisode
+- Keep episodes short — a sike 5-15 seconds, not 30. Set--dataset.episode_time_s=20
+- Controls: Right arrow = saLeft arrow = re-record, Esc =stop
+
+The Photos / Dimensions / Object Data
+
+Don't worry about them for now. They'd be useful for:
+- Classical vision (HSV tuniecondary priority
+- Documenting your setup for the AI Pitch Proposal the competition requires (rule 2.1)
+- Reference when you print yompetition colors later
+
+Save them somewhere organize part of the trainingpipeline.
+
+Remote Desktop for Training
+
+Before you leave the site today, set up SSH so you can train from home:
+
+# On the desktop
+sudo apt install openssh-ser
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+# Note the desktop's IP
+ip addr | grep inet
+
+Then from your Acer at home:
+ssh username@<desktop-ip>
+
+If the desktop is behind a hwall, you may need:
+- Tailscale (easiest — install on both machines, creates a VPN, free) — curl -fsSL
+https://tailscale.com/instal
+- Or port forwarding on the router
+
+Once SSH works, you start training remotely with:
+ssh username@desktop-ip
+conda activate lerobot
+python lerobot/scripts/train
+  --dataset.repo_id=mithi/pick-place \
+  --policy=act \
+  --output_dir=outputs/train/pick-place-act
+
+Use tmux or screen so training continues if your SSH disconnects:
+sudo apt install tmux
+tmux new -s train
+# run training command insid
+# Ctrl+B then D to detach
+# tmux attach -t train  to r
+
+Priority Order for Today
+
+1. Calibrate arms on desktop
+2. Test teleoperation
+3. Record 25-50 pick-and-pla
+4. Set up SSH + Tailscale for remote access
+5. Verify dataset saved corre/lerobot/ or wherever itsaved)

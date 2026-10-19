@@ -1,0 +1,94 @@
+Workspace Dimensions (rule 1.2.3, 5.1.3)
+
+- Workspace: 160cm wide x 80cm deep — make sure your table matches this
+- Dual-arm separation: 500mm center-to-center (±10mm tolerance) between the two arm bases
+- Each arm has its own independent base (not joined)
+- Bring your own clamps — must fit 15mm to 40mm table thickness (rule 5.1.5.6)
+
+Arm Constraints (5.1.6)
+
+- Max reach: 500mm from base center to gripper tip (standard gripper)
+- Max reach with custom gripper: 700mm
+- Min reach: gripper must reach within 150mm of the base pivot
+- 5 DOF + gripper per arm, SO-100/SO-101 platform
+
+Sensors & Camera (5.2.7, 5.6)
+
+- No restrictions on cameras — your ZED 2 is fine
+- Can mount cameras on arms, workspace, or mounting poles
+- Additional sensors (touch, pressure, distance) all allowed
+- Camera mounting must not change the arm configuration
+
+The Big Rule — AI / Autonomy (5.4, 5.4.5)
+
+This is the critical one that changes our approach:
+
+- The system MUST use learned models (imitation learning, behavior cloning, RL, VLA, diffusion policy) — rule 5.4.5.10-11
+- A system using ONLY manually defined rules, deterministic pipelines, or fixed coordinate-based execution is NOT COMPLIANT
+- No cloud/remote compute during scored runs — everything runs on YOUR laptop (rule 5.4.5.4-5)
+- No human input during runs — no joystick, keyboard, teleoperation, real-time corrections (rule 5.4.4)
+- Pre-trained models must be loaded before the run (rule 5.5)
+- You CAN have different models for different games (rule 5.4.1.3)
+
+Training Methods Allowed (5.4.6.3)
+
+- Leader-follower demonstrations (record + train)
+- Simulation
+- VR teleoperation
+
+---
+What This Means for Your Classical Pipeline
+
+The classical pick-and-place code we wrote (so100_classical_pick_place.py) cannot be the sole system. The rules explicitly say a deterministic/IK-only pipeline is not compliant. You need learned models. The classical code can still be useful as a fallback or hybrid (perception via learned model, some planning via classical), but the core control must come from a trained policy.
+
+---
+Today's Calibration Checklist (Prioritized for the Rules)
+
+1. Set up the physical workspace to competition spec
+
+- Mark out 160cm x 80cm on the table
+- Position both arm bases exactly 500mm apart (center-to-center)
+- Clamp both arms down — test stability
+
+2. Motor configuration (one-time EEPROM setup)
+
+On your Acer laptop:
+conda activate lerobot
+pip install -e ".[feetech]"
+
+# Find ports
+lerobot-find-port
+
+# Set motor IDs - follower arm (connect one motor at a time)
+lerobot-setup-motors --robot.type=so100_follower --robot.port=COM?
+
+# Set motor IDs - leader arm
+lerobot-setup-motors --teleop.type=so100_leader --teleop.port=COM?
+
+3. Calibrate both follower arms
+
+# Follower arm 1
+lerobot-calibrate --robot.type=so100_follower --robot.port=COM? --robot.id=follower_left
+
+# Follower arm 2
+lerobot-calibrate --robot.type=so100_follower --robot.port=COM? --robot.id=follower_right
+Move each joint to middle position → press Enter → then move all joints through full range.
+
+4. Calibrate both leader arms
+
+lerobot-calibrate --teleop.type=so100_leader --teleop.port=COM? --teleop.id=leader_left
+lerobot-calibrate --teleop.type=so100_leader --teleop.port=COM? --teleop.id=leader_right
+
+5. Test teleoperation (leader → follower)
+
+This validates that calibration worked. If the follower mirrors the leader smoothly, you're good.
+
+6. Set up the ZED 2 camera
+
+- Mount it (pole or overhead) — note exact position
+- Test that it sees the full 160x80cm workspace
+- Take reference photos of the workspace and any practice objects
+
+7. Record a few test demonstration episodes
+
+Even 2-3 episodes of a simple pick-and-place — this validates the full data collection pipeline on your hardware.
