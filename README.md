@@ -295,9 +295,9 @@ TIMELINE — WHAT TO DO WHEN
   THIS WEEK (Oct 14-20):
     You (remote):
       [x] Set up GitHub repo with structure above
-      [ ] Fix URDF loading in test_ik.py (get working URDF from teammates)
+      [x] Fix URDF loading in test_ik.py
       [x] Start AI Pitch Proposal (DUE ~Oct 28)
-      [ ] Start 'Making Of' video clips (DUE Nov 1)
+      [x] Start 'Making Of' video clips (DUE Nov 1)
     Teammates (lab):
       [ ] Test IK on physical arm with URDF values
       [ ] Take YOLO training photos with current green objects
