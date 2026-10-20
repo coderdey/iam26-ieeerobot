@@ -91,9 +91,19 @@ class PhysicalArm:
 # HELPER: solve IK in sim and optionally send to physical arm
 # =============================================================================
 
+GRIPPER_DOWN_ORN = None
+
+def get_gripper_down_orn():
+    global GRIPPER_DOWN_ORN
+    if GRIPPER_DOWN_ORN is None:
+        GRIPPER_DOWN_ORN = p.getQuaternionFromEuler([np.pi, 0, 0])
+    return GRIPPER_DOWN_ORN
+
 def solve_and_move(robot_id, target, movable_joints, real_arm=None, speed=300, label=""):
     joint_angles = p.calculateInverseKinematics(
-        robot_id, ee_index, target, maxNumIterations=200, residualThreshold=1e-5)
+        robot_id, ee_index, target,
+        targetOrientation=get_gripper_down_orn(),
+        maxNumIterations=500, residualThreshold=1e-5)
 
     for i, joint_idx in enumerate(movable_joints):
         p.setJointMotorControl2(robot_id, joint_idx, p.POSITION_CONTROL,
@@ -176,9 +186,13 @@ def run_interactive():
             parts = val.replace(',', ' ').split()
             target = [float(parts[0]), float(parts[1]), float(parts[2])]
             solve_and_move(robot_id, target, movable_joints, real_arm, label="manual")
+            actual = p.getLinkState(robot_id, ee_index)
+            orn_euler = p.getEulerFromQuaternion(actual[1])
+            orn_deg = [np.degrees(o) for o in orn_euler]
+            print(f"  Gripper orientation (deg): [{orn_deg[0]:.0f}, {orn_deg[1]:.0f}, {orn_deg[2]:.0f}]")
         except (ValueError, IndexError):
             print("  Format: x y z (e.g. '0.15 0.10 0.10')")
-
+          
     if real_arm:
         real_arm.home()
         real_arm.disconnect()
@@ -229,7 +243,8 @@ test_points = [
 print("\n--- REACHABILITY TEST ---")
 for target in test_points:
     joint_angles = p.calculateInverseKinematics(robot_id_1, ee_index, target,
-        maxNumIterations=200, residualThreshold=1e-5)
+        targetOrientation=get_gripper_down_orn(),
+        maxNumIterations=500, residualThreshold=1e-5)
     for i, joint_idx in enumerate(movable_joints):
         p.resetJointState(robot_id_1, joint_idx, joint_angles[i])
     for _ in range(50):
