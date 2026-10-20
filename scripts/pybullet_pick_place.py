@@ -14,11 +14,12 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
 
 # =============================================================================
 # CONFIG — UPDATE THESE FOR YOUR SETUP
 # =============================================================================
-URDF_PATH = "C:/Users/mithi/lerobot/sim/so101_new_calib.urdf"
+URDF_PATH = os.path.expanduser("~/.cache/huggingface/lerobot/lerobot/SO-ARM100/Simulation/SO101/so101_new_calib.urdf")
 SERIAL_PORT = "/dev/ttyACM1"   # Linux desktop. Windows: "COM3"
 BAUDRATE = 1_000_000
 
@@ -154,6 +155,8 @@ def run_interactive():
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.setGravity(0, 0, -10)
     p.loadURDF("plane.urdf")
+    print("URDF_PATH:", URDF_PATH)
+    print("exists:", os.path.exists(URDF_PATH))
     robot_id = p.loadURDF(URDF_PATH, basePosition=[edge_offset, 0, 0], useFixedBase=True)
     movable_joints = [i for i in range(p.getNumJoints(robot_id))
         if p.getJointInfo(robot_id, i)[2] != p.JOINT_FIXED]
@@ -321,33 +324,33 @@ if USE_REAL:
 # PICK
 print("\nPICK:")
 solve_and_move(robot_id_1, [detected_pos[0], detected_pos[1], APPROACH_HEIGHT],
-    movable_joints, real_arm, speed=100, label="above object")
+    movable_joints, real_arm, speed=50, label="above object")
 if real_arm:
     real_arm.set_gripper("open")
     time.sleep(0.5)
 
 solve_and_move(robot_id_1, [detected_pos[0], detected_pos[1], GRASP_HEIGHT],
-    movable_joints, real_arm, speed=50, label="grasp position")
+    movable_joints, real_arm, speed=25, label="grasp position")
 if real_arm:
     real_arm.set_gripper("close")
     time.sleep(0.8)
 
 solve_and_move(robot_id_1, [detected_pos[0], detected_pos[1], LIFT_HEIGHT],
-    movable_joints, real_arm, speed=100, label="lift")
+    movable_joints, real_arm, speed=50, label="lift")
 
 # PLACE
 print("\nPLACE:")
 solve_and_move(robot_id_1, [bin_pos[0], bin_pos[1], LIFT_HEIGHT],
-    movable_joints, real_arm, speed=100, label="above bin")
+    movable_joints, real_arm, speed=50, label="above bin")
 
 solve_and_move(robot_id_1, [bin_pos[0], bin_pos[1], DROP_HEIGHT],
-    movable_joints, real_arm, speed=50, label="drop position")
+    movable_joints, real_arm, speed=25, label="drop position")
 if real_arm:
     real_arm.set_gripper("open")
     time.sleep(0.5)
 
 solve_and_move(robot_id_1, [bin_pos[0], bin_pos[1], LIFT_HEIGHT],
-    movable_joints, real_arm, speed=100, label="retreat")
+    movable_joints, real_arm, speed=50, label="retreat")
 
 print("\n--- DONE ---")
 if real_arm:

@@ -5,7 +5,7 @@ import numpy as np
 
 # Load chain from URDF — no manual measurements needed
 chain = ikpy.chain.Chain.from_urdf_file(
-    "../urdf/so101.urdf",
+    "/home/cris/.cache/huggingface/lerobot/lerobot/SO-ARM100/Simulation/SO101/so101_new_calib.urdf",
     active_links_mask=[False, True, True, True, True, True, False]
 )
 
@@ -29,3 +29,41 @@ for target in test_points:
     print(f"  Error: {error_mm:.1f} mm")
     print(f"  {'OK' if error_mm < 10 else 'BAD — check URDF'}")
     print()
+    
+    '''import ikpy.chain
+import numpy as np
+
+chain = ikpy.chain.Chain.from_urdf_file(
+    "/home/cris/.cache/huggingface/lerobot/lerobot/SO-ARM100/Simulation/SO101/so101_new_calib.urdf",
+    active_links_mask=[False, True, True, True, True, True, False]
+)
+
+def solve_ik(target, tries=30):
+    best, best_err = None, 1e9
+    lo = [b[0] if b[0] is not None else -np.pi for b in (l.bounds for l in chain.links)]
+    hi = [b[1] if b[1] is not None else np.pi for b in (l.bounds for l in chain.links)]
+    rng = np.random.default_rng(0)
+    for i in range(tries):
+        if i == 0:
+            init = np.zeros(len(chain.links))
+        else:
+            init = rng.uniform(lo, hi)
+            init[0] = init[-1] = 0  # fixed links
+        sol = chain.inverse_kinematics(target, initial_position=init)
+        err = np.linalg.norm(chain.forward_kinematics(sol)[:3, 3] - target)
+        if err < best_err:
+            best, best_err = sol, err
+        if err < 0.002:
+            break
+    return best, best_err * 1000
+    
+    chain = ikpy.chain.Chain.from_urdf_file(
+    URDF,
+    active_links_mask=[False, True, True, True, True, False, False]  # roll locked
+)
+
+angles = chain.inverse_kinematics(
+    target,
+    target_orientation=[0, 0, -1],
+    orientation_mode="Z",
+)'''
