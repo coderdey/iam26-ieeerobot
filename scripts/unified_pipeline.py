@@ -297,11 +297,16 @@ class ACTPolicy:
         try:
             from lerobot.robots.so_follower import SO100Follower, SO100FollowerConfig
             from lerobot.cameras.opencv import OpenCVCameraConfig
+            from lerobot.policies.factory import make_pre_post_processors
             import torch
-            #print({k: (v.shape, v.dtype) for k, v in obs.items()})
+
+            preprocessor, postprocessor = make_pre_post_processors(
+                self.policy.config, pretrained_path=checkpoint_path)
+
             config = SO100FollowerConfig(
                 port=robot_config["port"],
                 id=robot_config["id"],
+                max_relative_target=5.0,   # degrees per step; raise later once it behaves
                 cameras={
                     "wristcam": OpenCVCameraConfig(
                         index_or_path=robot_config["wrist_cam_index"],
@@ -316,13 +321,15 @@ class ACTPolicy:
             start = time.time()
             step = 0
 
+            self.policy.reset()
             while time.time() - start < duration_s:
                 t0 = time.perf_counter()
                 raw_obs = robot.get_observation()
                 obs = build_policy_obs(raw_obs, self.device)
-
+                obs = preprocessor(obs)
                 with torch.no_grad():
                     action = self.policy.select_action(obs)     # (1, 6)
+                action = postprocessor(action)
                 action_np = action.squeeze(0).cpu().numpy()
                 robot.send_action({f"{j}.pos": float(action_np[i])
                                    for i, j in enumerate(JOINT_NAMES)})
