@@ -270,6 +270,19 @@ class ACTPolicy:
     def is_loaded(self):
         return self.policy is not None
 
+    JOINT_NAMES = ["shoulder_pan", "shoulder_lift", "elbow_flex",
+                "wrist_flex", "wrist_roll", "gripper"]
+
+    def build_policy_obs(raw_obs, device):
+        state = np.array([raw_obs[f"{j}.pos"] for j in JOINT_NAMES], dtype=np.float32)
+        img = raw_obs["wristcam"]                       # (480, 640, 3) RGB uint8
+        img = torch.from_numpy(img).permute(2, 0, 1)    # (3, 480, 640)
+        img = img.float().div(255.0).unsqueeze(0)       # (1, 3, 480, 640)
+        return {
+            "observation.state": torch.from_numpy(state).unsqueeze(0).to(device),
+            "observation.images.wristcam": img.to(device),
+        }
+
     def run_grasp_and_place(self, robot_config, duration_s=10):
         """
         Run the ACT policy for a fixed duration. The policy reads the wrist
@@ -285,15 +298,14 @@ class ACTPolicy:
             from lerobot.robots.so_follower import SO100Follower, SO100FollowerConfig
             from lerobot.cameras.opencv import OpenCVCameraConfig
             import torch
-            print({k: (v.shape, v.dtype) for k, v in obs.items()})
+            #print({k: (v.shape, v.dtype) for k, v in obs.items()})
             config = SO100FollowerConfig(
                 port=robot_config["port"],
                 id=robot_config["id"],
                 cameras={
-                    "wrist": OpenCVCameraConfig(
+                    "wristcam": OpenCVCameraConfig(
                         index_or_path=robot_config["wrist_cam_index"],
-                        width=640, height=480, fps=25
-                    ),
+                        width=640, height=480, fps=25),
                 },
             )
 
@@ -306,26 +318,16 @@ class ACTPolicy:
 
             while time.time() - start < duration_s:
                 t0 = time.perf_counter()
-                obs = robot.get_observation()
-
-                obs_tensor = {}
-                for key, val in obs.items():
-                    if isinstance(val, np.ndarray):
-                        obs_tensor[key] = torch.from_numpy(val).unsqueeze(0).to(self.device)
+                raw_obs = robot.get_observation()
+                obs = build_policy_obs(raw_obs, self.device)
 
                 with torch.no_grad():
-                    action = self.policy.select_action(obs_tensor)
-
-                action_dict = {}
+                    action = self.policy.select_action(obs)     # (1, 6)
                 action_np = action.squeeze(0).cpu().numpy()
-                for i, name in enumerate(robot.action_features):
-                    action_dict[name] = float(action_np[i])
-
-                robot.send_action(action_dict)
+                robot.send_action({f"{j}.pos": float(action_np[i])
+                                   for i, j in enumerate(JOINT_NAMES)})
                 step += 1
-
-                elapsed = time.perf_counter() - t0
-                sleep_time = (1.0 / fps) - elapsed
+                sleep_time = (1.0 / fps) - (time.perf_counter() - t0)
                 if sleep_time > 0:
                     time.sleep(sleep_time)
 
