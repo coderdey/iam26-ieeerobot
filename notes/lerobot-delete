@@ -1,0 +1,3 @@
+to delete dataset
+
+lerobot-edit-dataset \--repo_id coderdey/dataset5_pickdrop_20261026_141000 \--operation.type delete_episodes \--operation.episode_indices "[23]"
