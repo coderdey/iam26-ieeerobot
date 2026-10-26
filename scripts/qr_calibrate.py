@@ -9,10 +9,10 @@ import numpy as np
 # FILL IN: measured positions of QR codes relative to robot base (meters)
 # Measure with ruler from arm base center to each QR code center
 KNOWN_QR_POSITIONS = {
-    "qr_1": np.array([0.10, 0.10, 0.0]),   # UPDATE with real measurements
-    "qr_2": np.array([0.20, 0.10, 0.0]),   # UPDATE
-    "qr_3": np.array([0.10, 0.20, 0.0]),   # UPDATE
-    "qr_4": np.array([0.20, 0.20, 0.0]),   # UPDATE
+    "TOP_RIGHT": np.array([0.46, 0.38, 0.0]),   # UPDATED with real measurements
+    "BOTTOM_RIGHT": np.array([0.20, 0.39, 0.0]),   
+    "BOTTOM_LEFT": np.array([0.20, 0.97, 0.0]),   
+    "TOP_LEFT": np.array([0.46, 0.97, 0.0]),   
 }
 
 
